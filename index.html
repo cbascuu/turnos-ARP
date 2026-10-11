@@ -142,7 +142,6 @@ h2 {
 /* TARJETA SUPERIOR: el recuadro blanco que contiene el nombre y los dos botones. */
 .panel {
   width: 100%;
-  max-width: 560px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -291,6 +290,29 @@ ol { list-style: none; margin: 0; padding: 0; }
    HTML: puedes escribirlo ahí (por ejemplo "Nadie en la lista"). */
 .empty { margin: 0; padding: 22px 16px; color: var(--muted); }
 
+/* MINI VENTANA (solo en modo admin): una pastilla oscura con el número de personas de cada
+   lista. Cada número usa el color de su lista: ámbar (intervención directa) y azul (turnos).
+   Sus colores son los mismos en tema claro y oscuro. */
+:root { --mini-bg: #12161F; --mini-line: #283042; --mini-d: #FFC21A; --mini-t: #8CA2FF; }
+/* Cabecera: la línea de estado a la izquierda y el botón de la mini ventana a la derecha. */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.top .count { margin: 0; }
+/* Botón de la mini ventana cuando está activada. */
+.ghost.on { color: var(--accent); border-color: var(--accent); }
+/* La pastilla: dos números separados por una línea fina. */
+.mini { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 10px 18px; background: var(--mini-bg); border: 1px solid var(--mini-line); border-radius: 12px; user-select: none; }
+.mini-n { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; min-width: 1.2ch; text-align: center; }
+.mini-n.directas { color: var(--mini-d); }
+.mini-n.turnos { color: var(--mini-t); }
+.mini-sep { width: 1px; align-self: stretch; background: var(--mini-line); }
+/* Versión dentro de la página (si el navegador no permite ventana flotante): fija abajo a la
+   izquierda y se puede arrastrar. */
+.mini-float { position: fixed; left: 16px; bottom: 16px; z-index: 50; cursor: grab; touch-action: none; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); }
+.mini-float.drag { cursor: grabbing; }
+/* Versión dentro de la ventana flotante del navegador: la pastilla ocupa toda la ventana. */
+body.pip { margin: 0; padding: 0; min-height: 100vh; background: var(--mini-bg); display: grid; place-items: center; }
+body.pip .mini { width: 100%; height: 100vh; border: 0; border-radius: 0; }
+
 /* Contorno visible al moverse por la página con el teclado. */
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 /* Transición suave en los botones, solo si el usuario no tiene desactivadas las animaciones. */
@@ -307,10 +329,12 @@ ol { list-style: none; margin: 0; padding: 0; }
 <body>
 <!-- CONTENIDO VISIBLE. Todo lo que se ve en pantalla está dentro de este bloque. -->
 <main class="wrap">
-  <!-- CABECERA: solo contiene la línea de estado de sincronización. "Conectando…" es el texto
-       inicial; el JavaScript lo cambia a "Actualizado", "Sin conexión"… y le pone el color. -->
-  <header>
+  <!-- CABECERA: la línea de estado de sincronización ("Conectando…" es el texto inicial; el
+       JavaScript lo cambia a "Actualizado", "Sin conexión"… y le pone el color) y, a la
+       derecha y solo en modo #admin, el botón que activa o desactiva la mini ventana. -->
+  <header class="top">
     <p id="count" class="count bad">Conectando…</p>
+    <button id="mini-toggle" type="button" class="ghost" aria-pressed="false" hidden>Activar mini ventana</button>
   </header>
 
   <!-- TARJETA SUPERIOR: tu nombre y los dos botones. -->
@@ -418,7 +442,7 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
   var $ = function (id) { return document.getElementById(id); };
   // Elementos fijos de la página que se usan mucho: campo del nombre, formulario, mensaje
   // de estado y línea de sincronización.
-  var els = { name: $('name'), form: $('form'), status: $('status'), count: $('count') };
+  var els = { name: $('name'), form: $('form'), status: $('status'), count: $('count'), miniBtn: $('mini-toggle') };
   // Claves con las que el navegador recuerda cosas en tu dispositivo: tu nombre (NAME_KEY)
   // y tu identificador anónimo (ID_KEY).
   var NAME_KEY = 'turnos:nombre';
@@ -432,8 +456,8 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
   // Textos de cada lista. join = texto del botón para apuntarse, leave = para retirarse,
   // now = etiqueta de quien va el primero. Aquí se editan los textos de botones y etiquetas.
   var CFG = {
-    directas: { join: 'Intervención directa', leave: 'Retirar intervención directa', now: 'Interviene ahora' },
-    turnos: { join: 'Pedir turno', leave: 'Retirar turno', now: 'Con la palabra' }
+    directas: { join: 'Intervención directa', leave: 'Retirar intervención directa', now: 'Tu turno' },
+    turnos: { join: 'Pedir turno', leave: 'Retirar turno', now: 'Tu turno' }
   };
   // L guarda toda la información de cada lista: las personas (docs), si ya han cargado
   // (loaded) y sus elementos de la página (botón, lista, mensaje vacío, barra de admin).
@@ -488,6 +512,12 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     uid: getId(), isAdmin: checkAdmin(), setup: false, failed: false, connected: false,
     busy: false, msg: '', msgError: false, db: null, api: null
   };
+
+  // Estado de la mini ventana: on = activada, pip = ventana flotante del navegador, box =
+  // recuadro dentro de la página, y los "refs" son los elementos donde se escriben los números.
+  var mini = { on: false, pip: null, pipRefs: null, box: null, boxRefs: null };
+  var MINI_TITLES = { directas: 'Intervención directa', turnos: 'Turnos de palabra' };
+  var MINI_NOTE = 'Este navegador no permite una ventana flotante fuera de la página: el recuadro se muestra dentro de ella.';
 
   // Traduce los errores técnicos a un mensaje que se entienda.
   function errText(e) {
@@ -612,6 +642,13 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     // Mensaje de ayuda o de error debajo de los botones (en rojo si es un error).
     els.status.textContent = state.msg || derivedMsg();
     els.status.classList.toggle('error', state.setup || state.failed || (!!state.msg && state.msgError));
+
+    // Botón de la mini ventana (solo se ve en modo admin) y números de la mini ventana.
+    els.miniBtn.hidden = !state.isAdmin;
+    els.miniBtn.textContent = mini.on ? 'Desactivar mini ventana' : 'Activar mini ventana';
+    els.miniBtn.setAttribute('aria-pressed', mini.on ? 'true' : 'false');
+    els.miniBtn.classList.toggle('on', mini.on);
+    updateMini();
   }
 
   // APUNTARSE A UNA LISTA: comprueba que hay nombre y guarda en la base de datos tu nombre
@@ -673,6 +710,151 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     if (mineIndex(l) >= 0) removeDoc(l, state.uid); else claim(l);
   }
 
+  // MINI VENTANA (solo admin). Muestra únicamente el número de personas de cada lista, cada
+  // número con el color de su lista. Hay dos formas de mostrarla:
+  // 1) Ventana flotante del navegador (Chrome y Edge de escritorio): se queda visible encima
+  //    de todo aunque minimices o cambies de página, y se arrastra como cualquier ventana.
+  // 2) Si el navegador no lo permite, un recuadro dentro de la página (abajo a la izquierda)
+  //    que también se arrastra, pero que no se ve si minimizas la página.
+  // Los navegadores solo dejan abrir la ventana flotante al pulsar un botón, por eso no se
+  // abre sola al cargar la página.
+
+  // Crea la pastilla con los dos números en el documento indicado (la página o la ventana
+  // flotante) y devuelve dónde escribir cada número.
+  function createMini(doc) {
+    var root = doc.createElement('div');
+    root.className = 'mini';
+    root.setAttribute('role', 'group');
+    root.setAttribute('aria-label', 'Personas en cada lista');
+    var refs = {};
+    KEYS.forEach(function (k, i) {
+      if (i > 0) {
+        var sep = doc.createElement('span');
+        sep.className = 'mini-sep';
+        root.appendChild(sep);
+      }
+      var n = doc.createElement('span');
+      n.className = 'mini-n ' + k;
+      n.title = MINI_TITLES[k];
+      root.appendChild(n);
+      refs[k] = n;
+    });
+    return { root: root, refs: refs };
+  }
+
+  // Escribe en la mini ventana el número de personas de cada lista ("–" mientras no han cargado).
+  function updateMini() {
+    [mini.boxRefs, mini.pipRefs].forEach(function (refs) {
+      if (!refs) return;
+      KEYS.forEach(function (k) {
+        var l = L[k], t = l.loaded ? String(l.docs.length) : '–';
+        refs[k].textContent = t;
+        refs[k].setAttribute('aria-label', MINI_TITLES[k] + ': ' + t);
+      });
+    });
+  }
+
+  // Copia los estilos de la página a la ventana flotante, para que se vea igual.
+  function copyStyles(doc) {
+    Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+      try {
+        var css = Array.prototype.map.call(sheet.cssRules, function (r) { return r.cssText; }).join('\n');
+        var st = doc.createElement('style');
+        st.textContent = css;
+        doc.head.appendChild(st);
+      } catch (e) {
+        // Las hojas de otros sitios (los tipos de letra) no se pueden leer: se enlazan.
+        if (sheet.href) {
+          var lk = doc.createElement('link');
+          lk.rel = 'stylesheet';
+          lk.href = sheet.href;
+          doc.head.appendChild(lk);
+        }
+      }
+    });
+  }
+
+  // Permite arrastrar el recuadro de la página con el ratón o el dedo.
+  function enableDrag(el) {
+    var dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+    el.addEventListener('pointerdown', function (e) {
+      var r = el.getBoundingClientRect();
+      dragging = true; sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+      el.classList.add('drag');
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var x = Math.max(0, Math.min(window.innerWidth - el.offsetWidth, ox + e.clientX - sx));
+      var y = Math.max(0, Math.min(window.innerHeight - el.offsetHeight, oy + e.clientY - sy));
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.bottom = 'auto';
+    });
+    function end() { dragging = false; el.classList.remove('drag'); }
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
+  // ACTIVAR la mini ventana: primero intenta la ventana flotante del navegador y, si no se
+  // puede, usa el recuadro dentro de la página.
+  async function openMini() {
+    if (window.documentPictureInPicture) {
+      try {
+        var pip = await window.documentPictureInPicture.requestWindow({ width: 220, height: 110, disallowReturnToOpener: true });
+        copyStyles(pip.document);
+        pip.document.documentElement.lang = 'es';
+        pip.document.body.className = 'pip';
+        var m = createMini(pip.document);
+        pip.document.body.appendChild(m.root);
+        mini.pip = pip;
+        mini.pipRefs = m.refs;
+        // Si cierras la ventana flotante con su propia X, la mini ventana pasa a desactivada.
+        pip.addEventListener('pagehide', function () {
+          if (mini.pip !== pip) return;
+          mini.pip = null; mini.pipRefs = null; mini.on = false;
+          render();
+        });
+        mini.on = true;
+        render();
+        return;
+      } catch (e) {
+        // No se pudo abrir la ventana flotante: se usa el recuadro de la página.
+      }
+    }
+    if (!mini.box) {
+      var b = createMini(document);
+      b.root.classList.add('mini-float');
+      document.body.appendChild(b.root);
+      enableDrag(b.root);
+      mini.box = b.root;
+      mini.boxRefs = b.refs;
+    }
+    // Vuelve a su sitio de origen (abajo a la izquierda) cada vez que se activa.
+    mini.box.style.left = '';
+    mini.box.style.top = '';
+    mini.box.style.bottom = '';
+    mini.box.hidden = false;
+    mini.on = true;
+    setMsg(MINI_NOTE, false);
+  }
+
+  // DESACTIVAR la mini ventana: cierra la ventana flotante y oculta el recuadro de la página.
+  function closeMini() {
+    var p = mini.pip;
+    mini.pip = null; mini.pipRefs = null;
+    if (p) { try { p.close(); } catch (e) {} }
+    if (mini.box) mini.box.hidden = true;
+    mini.on = false;
+    if (state.msg === MINI_NOTE) state.msg = '';
+    render();
+  }
+
+  // Un solo botón activa o desactiva la mini ventana.
+  function toggleMini() {
+    if (mini.on) closeMini(); else openMini();
+  }
+
   // CONEXIÓN DE LOS BOTONES: asocia cada botón con su acción al hacer clic (apuntarse o
   // retirarse, pasar al siguiente, vaciar lista).
   KEYS.forEach(function (k) {
@@ -683,9 +865,15 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
   });
   // Pulsar Enter en el campo del nombre equivale a pulsar "Pedir Turno".
   els.form.addEventListener('submit', function (ev) { ev.preventDefault(); toggle(L.turnos); });
+  // Botón de la mini ventana (arriba a la derecha, solo en modo admin).
+  els.miniBtn.addEventListener('click', toggleMini);
+  els.miniBtn.title = window.documentPictureInPicture
+    ? 'Abre una ventana pequeña que se queda visible aunque minimices la página'
+    : 'Tu navegador no permite ventana flotante: se mostrará un recuadro dentro de la página';
   // Si cambia el final del enlace (#admin) con la página abierta, el modo admin se activa o
   // se desactiva al instante.
-  window.addEventListener('hashchange', function () { state.isAdmin = checkAdmin(); render(); });
+  // Si sales del modo admin, la mini ventana se cierra.
+  window.addEventListener('hashchange', function () { state.isAdmin = checkAdmin(); if (!state.isAdmin) closeMini(); render(); });
 
   // ARRANQUE: rellena el nombre guardado y pinta la página por primera vez (aún sin datos).
   els.name.value = lsGet();
