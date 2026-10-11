@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Turnos de palabra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: nombre y dos botones arriba; debajo, en paralelo, la lista de intervención directa (ámbar) y la de turnos de palabra. En pantallas estrechas se apilan. */
+:root {
+  color-scheme: light;
+  --bg: #EEF0F4;
+  --surface: #FFFFFF;
+  --ink: #12161F;
+  --muted: #5B6474;
+  --line: #D9DDE5;
+  --accent: #2447D8;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E3E9FD;
+  --direct: #FFB800;
+  --direct-ink: #1A1300;
+  --direct-soft: #FFF0BF;
+  --direct-text: #7A5600;
+  --danger: #B3261E;
+  --f-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1117;
+    --surface: #161B24;
+    --ink: #E7EAF0;
+    --muted: #98A1B2;
+    --line: #283042;
+    --accent: #8CA2FF;
+    --accent-ink: #0B1030;
+    --accent-soft: #1C2547;
+    --direct: #FFC21A;
+    --direct-ink: #1A1300;
+    --direct-soft: #3B2D04;
+    --direct-text: #FFD25A;
+    --danger: #FF8A80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1117;
+  --surface: #161B24;
+  --ink: #E7EAF0;
+  --muted: #98A1B2;
+  --line: #283042;
+  --accent: #8CA2FF;
+  --accent-ink: #0B1030;
+  --accent-soft: #1C2547;
+  --direct: #FFC21A;
+  --direct-ink: #1A1300;
+  --direct-soft: #3B2D04;
+  --direct-text: #FFD25A;
+  --danger: #FF8A80;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.45;
+  padding-inline: 16px;
+  padding-block: 32px 56px;
+}
+.wrap { max-width: 980px; margin-inline: auto; display: grid; gap: 20px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start; }
+h1 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.15;
+}
+.count { margin: 6px 0 0; color: var(--muted); }
+
+.panel {
+  width: 100%;
+  max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+form { display: grid; gap: 10px; }
+label { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+input[type="text"] {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+input[type="text"]:disabled { color: var(--muted); }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+.actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.primary {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1.15;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+}
+.primary.leave { color: var(--accent); background: transparent; }
+.primary.direct-btn { color: var(--direct-ink); background: var(--direct); border-color: var(--direct); }
+.primary.direct-btn.leave { color: var(--direct-text); background: transparent; }
+.status { margin: 12px 0 0; min-height: 1.45em; color: var(--muted); font-size: 15px; }
+.status.error { color: var(--danger); }
+
+.block {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.num { font-family: var(--f-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.direct { border: 2px solid var(--direct); }
+.direct .block-head { background: var(--direct); color: var(--direct-ink); border-bottom: 0; }
+.direct .num { color: var(--direct-ink); }
+.hint { margin: 0; padding: 12px 16px; color: var(--muted); font-size: 14px; border-bottom: 1px solid var(--line); }
+
+.adminbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.ghost {
+  min-height: 40px;
+  padding: 0 14px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ghost.warn { color: var(--danger); border-color: var(--danger); }
+.ghost.small { min-height: 32px; padding: 0 10px; font-size: 13px; }
+
+ol { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+.row:first-child { border-top: 0; }
+.row.now { background: var(--accent-soft); }
+.pos { font-family: var(--f-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.row.now .pos { color: var(--accent); }
+.who { min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.row.now .who { font-family: var(--f-display); font-size: 21px; font-weight: 700; line-height: 1.15; }
+.tags { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tag.speak { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tag.me { color: var(--accent); border-color: var(--accent); }
+.direct .row.now { background: var(--direct-soft); }
+.direct .row.now .pos { color: var(--direct-text); }
+.direct .tag.speak { background: var(--direct); color: var(--direct-ink); border-color: var(--direct); }
+.direct .tag.me { color: var(--direct-text); border-color: var(--direct-text); }
+.empty { margin: 0; padding: 22px 16px; color: var(--muted); }
+
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .primary, .ghost { transition: opacity 0.15s ease, background-color 0.15s ease; }
+}
+@media (max-width: 420px) {
+  .row { grid-template-columns: 2.4rem minmax(0, 1fr); }
+  .tags { grid-column: 2; justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1>Turnos de palabra</h1>
+    <p id="count" class="count">Conectando…</p>
+  </header>
+
+  <section class="panel">
+    <form id="form" autocomplete="off">
+      <label for="name">Tu nombre</label>
+      <input id="name" type="text" maxlength="40" placeholder="Nombre y apellido" enterkeyhint="go">
+      <div class="actions">
+        <button id="go-turnos" type="button" class="primary" disabled>Pedir la palabra</button>
+        <button id="go-directas" type="button" class="primary direct-btn" disabled>Intervención directa</button>
+      </div>
+    </form>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <div class="cols">
+    <section class="block direct" aria-labelledby="h-directas">
+      <div class="block-head">
+        <h2 id="h-directas">Intervención directa</h2>
+        <span id="n-directas" class="num"></span>
+      </div>
+      <div id="admin-directas" class="adminbar" hidden>
+        <button id="next-directas" type="button" class="ghost">Pasar al siguiente</button>
+        <button id="clear-directas" type="button" class="ghost">Vaciar lista</button>
+      </div>
+      <ol id="list-directas"></ol>
+      <p id="empty-directas" class="empty" hidden></p>
+    </section>
+
+    <section class="block" aria-labelledby="h-turnos">
+      <div class="block-head">
+        <h2 id="h-turnos">Turnos de palabra</h2>
+        <span id="n-turnos" class="num"></span>
+      </div>
+      <div id="admin-turnos" class="adminbar" hidden>
+        <button id="next-turnos" type="button" class="ghost">Pasar al siguiente</button>
+        <button id="clear-turnos" type="button" class="ghost">Vaciar lista</button>
+      </div>
+      <ol id="list-turnos"></ol>
+      <p id="empty-turnos" class="empty" hidden></p>
+    </section>
+  </div>
+</main>
+
+<script>
+/* Avisos de diagnóstico: funcionan aunque el script principal falle al editarlo. */
+(function () {
+  function show(t) {
+    var s = document.getElementById('status');
+    if (s) { s.textContent = t; s.classList.add('error'); }
+  }
+  window.addEventListener('error', function (e) {
+    show('Error en la página: ' + (e && e.message ? e.message : 'desconocido') + '. Si acabas de editar index.html, revisa la línea DATABASE_URL (comillas y punto y coma).');
+  });
+  setTimeout(function () {
+    var c = document.getElementById('count');
+    if (c && c.textContent === 'Conectando…') {
+      show('No se consigue conectar con la base de datos. Revisa la URL en index.html y que las reglas estén publicadas.');
+    }
+  }, 12000);
+})();
+</script>
+<script>
+/* ============ CONFIGURACIÓN ============
+   Pega aquí la URL de tu Realtime Database de Firebase (ver LEEME.md, paso 4).
+   Empieza por https:// y termina en firebasedatabase.app o firebaseio.com */
+var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebasedatabase.app/";
+/* ====================================== */
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var els = { name: $('name'), form: $('form'), status: $('status'), count: $('count') };
+  var NAME_KEY = 'turnos:nombre';
+  var ID_KEY = 'turnos:id';
+  var ID_RE = /^[A-Za-z0-9_-]{8,40}$/;
+  var KEYS = ['directas', 'turnos'];
+  var CFG = {
+    directas: { join: 'Intervención directa', leave: 'Retirar intervención directa', now: 'Interviene ahora' },
+    turnos: { join: 'Pedir la palabra', leave: 'Retirar mi turno', now: 'Con la palabra' }
+  };
+  var L = {};
+  KEYS.forEach(function (k) {
+    L[k] = {
+      key: k, cfg: CFG[k], docs: [], loaded: false, confirmClear: false, timer: null,
+      btn: $('go-' + k), list: $('list-' + k), empty: $('empty-' + k), admin: $('admin-' + k),
+      next: $('next-' + k), clear: $('clear-' + k), num: $('n-' + k)
+    };
+  });
+
+  var memId = null;
+  function newId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    var c = 'abcdefghijklmnopqrstuvwxyz0123456789', s = '';
+    for (var i = 0; i < 24; i++) s += c.charAt(Math.floor(Math.random() * c.length));
+    return s;
+  }
+  function getId() {
+    try {
+      var v = localStorage.getItem(ID_KEY);
+      if (v && ID_RE.test(v)) return v;
+      v = newId();
+      localStorage.setItem(ID_KEY, v);
+      return v;
+    } catch (e) {
+      return memId || (memId = newId());
+    }
+  }
+  function lsGet() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } }
+  function lsSet(v) { try { localStorage.setItem(NAME_KEY, v); } catch (e) {} }
+  function checkAdmin() { return /organizador/i.test(location.hash); }
+  function ordinal(n) { return n + '.º'; }
+
+  var state = {
+    uid: getId(), isAdmin: checkAdmin(), setup: false, failed: false, connected: false,
+    busy: false, msg: '', msgError: false, db: null, api: null
+  };
+
+  function errText(e) {
+    var code = e && e.code;
+    if (code === 'PERMISSION_DENIED' || code === 'permission-denied') return 'No se pudo guardar. Comprueba que las reglas de la base de datos están publicadas (LEEME.md, paso 3).';
+    return 'No se pudo completar la acción. Comprueba tu conexión e inténtalo de nuevo.';
+  }
+
+  function setMsg(text, isError) { state.msg = text || ''; state.msgError = !!isError; render(); }
+
+  function mineIndex(l) {
+    for (var i = 0; i < l.docs.length; i++) if (l.docs[i].id === state.uid) return i;
+    return -1;
+  }
+
+  function canAct(l) {
+    return !state.setup && !state.failed && !!state.db && l.loaded && state.connected;
+  }
+
+  function derivedMsg() {
+    if (state.setup) return 'Falta configurar la base de datos. Sigue los pasos del archivo LEEME.md.';
+    if (state.failed) return 'No se pudo cargar el servicio de datos. Comprueba tu conexión y recarga la página.';
+    var parts = [];
+    var md = mineIndex(L.directas), mt = mineIndex(L.turnos);
+    if (md >= 0) parts.push(md === 0 ? 'Intervención directa: te toca.' : 'Intervención directa: posición ' + ordinal(md + 1) + '.');
+    if (mt >= 0) parts.push(mt === 0 ? 'Turno de palabra: te toca.' : 'Turno de palabra: posición ' + ordinal(mt + 1) + '.');
+    if (parts.length) return parts.join(' ');
+    return 'Escribe tu nombre y elige una opción. Se asigna por orden de pulsado.';
+  }
+
+  function renderList(l) {
+    var n = l.docs.length;
+    l.list.textContent = '';
+    l.docs.forEach(function (d, i) {
+      var li = document.createElement('li');
+      li.className = 'row' + (i === 0 ? ' now' : '');
+      var pos = document.createElement('span');
+      pos.className = 'pos';
+      pos.textContent = ordinal(i + 1);
+      var who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = d.name;
+      var tags = document.createElement('span');
+      tags.className = 'tags';
+      if (i === 0) {
+        var t1 = document.createElement('span');
+        t1.className = 'tag speak';
+        t1.textContent = l.cfg.now;
+        tags.appendChild(t1);
+      }
+      if (d.id === state.uid) {
+        var t2 = document.createElement('span');
+        t2.className = 'tag me';
+        t2.textContent = 'Tú';
+        tags.appendChild(t2);
+      }
+      if (state.isAdmin) {
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'ghost small';
+        rm.textContent = 'Quitar';
+        rm.setAttribute('aria-label', 'Quitar a ' + d.name);
+        rm.disabled = state.busy || !canAct(l);
+        rm.addEventListener('click', function () { removeDoc(l, d.id); });
+        tags.appendChild(rm);
+      }
+      li.appendChild(pos);
+      li.appendChild(who);
+      li.appendChild(tags);
+      l.list.appendChild(li);
+    });
+    l.empty.hidden = n > 0 || !l.loaded;
+    l.num.textContent = l.loaded ? String(n) : '';
+    l.admin.hidden = !state.isAdmin;
+    l.next.disabled = state.busy || n === 0 || !canAct(l);
+    l.clear.disabled = state.busy || n === 0 || !canAct(l);
+    l.clear.textContent = l.confirmClear ? 'Confirmar: vaciar lista' : 'Vaciar lista';
+    l.clear.classList.toggle('warn', l.confirmClear);
+  }
+
+  function render() {
+    var allLoaded = KEYS.every(function (k) { return L[k].loaded; });
+    if (state.setup) els.count.textContent = 'Sin configurar';
+    else if (state.failed) els.count.textContent = 'Sin conexión';
+    else if (!allLoaded) els.count.textContent = 'Conectando…';
+    else if (!state.connected) els.count.textContent = 'Sin conexión. Reconectando…';
+    else els.count.textContent = 'Se actualiza en directo en todos los dispositivos.';
+
+    var mt = mineIndex(L.turnos), md = mineIndex(L.directas);
+    var any = mt >= 0 || md >= 0;
+    if (mt >= 0) els.name.value = L.turnos.docs[mt].name;
+    else if (md >= 0) els.name.value = L.directas.docs[md].name;
+    els.name.disabled = any || state.setup || state.failed;
+
+    KEYS.forEach(function (k) {
+      var l = L[k], mine = mineIndex(l) >= 0;
+      l.btn.disabled = state.busy || !canAct(l);
+      l.btn.textContent = mine ? l.cfg.leave : l.cfg.join;
+      l.btn.classList.toggle('leave', mine);
+      renderList(l);
+    });
+
+    els.status.textContent = state.msg || derivedMsg();
+    els.status.classList.toggle('error', state.setup || state.failed || (!!state.msg && state.msgError));
+  }
+
+  async function claim(l) {
+    var name = els.name.value.replace(/\s+/g, ' ').trim().slice(0, 40);
+    if (!name) { setMsg('Escribe tu nombre para participar.', true); els.name.focus(); return; }
+    state.busy = true; state.msg = ''; render();
+    try {
+      if (mineIndex(l) < 0) {
+        // La hora de pulsado la pone el servidor, así el orden no depende del reloj de cada dispositivo.
+        await state.api.set(state.api.ref(state.db, l.key + '/' + state.uid), {
+          name: name, createdAt: state.api.serverTimestamp()
+        });
+        lsSet(name);
+      }
+    } catch (e) {
+      state.msg = errText(e); state.msgError = true;
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  async function removeDoc(l, id) {
+    if (!state.db || state.busy) return;
+    state.busy = true; state.msg = ''; render();
+    try { await state.api.remove(state.api.ref(state.db, l.key + '/' + id)); }
+    catch (e) { state.msg = errText(e); state.msgError = true; }
+    finally { state.busy = false; render(); }
+  }
+
+  async function clearAll(l) {
+    if (!state.db || state.busy) return;
+    if (!l.confirmClear) {
+      l.confirmClear = true; render();
+      l.timer = setTimeout(function () { l.confirmClear = false; render(); }, 4000);
+      return;
+    }
+    clearTimeout(l.timer);
+    l.confirmClear = false;
+    state.busy = true; state.msg = ''; render();
+    try {
+      var ids = l.docs.map(function (d) { return d.id; });
+      for (var i = 0; i < ids.length; i++) await state.api.remove(state.api.ref(state.db, l.key + '/' + ids[i]));
+    } catch (e) {
+      state.msg = errText(e); state.msgError = true;
+    } finally {
+      state.busy = false; render();
+    }
+  }
+
+  function toggle(l) {
+    if (state.busy || !canAct(l)) return;
+    if (mineIndex(l) >= 0) removeDoc(l, state.uid); else claim(l);
+  }
+
+  KEYS.forEach(function (k) {
+    var l = L[k];
+    l.btn.addEventListener('click', function () { toggle(l); });
+    l.next.addEventListener('click', function () { if (l.docs.length) removeDoc(l, l.docs[0].id); });
+    l.clear.addEventListener('click', function () { clearAll(l); });
+  });
+  els.form.addEventListener('submit', function (ev) { ev.preventDefault(); toggle(L.turnos); });
+  window.addEventListener('hashchange', function () { state.isAdmin = checkAdmin(); render(); });
+
+  els.name.value = lsGet();
+  render();
+
+  (async function init() {
+    var URL_RE = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.(firebaseio\.com|firebasedatabase\.app)\/?$/i;
+    if (!URL_RE.test(DATABASE_URL)) { state.setup = true; render(); return; }
+    try {
+      var base = 'https://www.gstatic.com/firebasejs/10.14.1/';
+      var A = await import(base + 'firebase-app.js');
+      var D = await import(base + 'firebase-database.js');
+      var app = A.initializeApp({ databaseURL: DATABASE_URL });
+      state.db = D.getDatabase(app);
+      state.api = { ref: D.ref, set: D.set, remove: D.remove, serverTimestamp: D.serverTimestamp };
+
+      D.onValue(D.ref(state.db, '.info/connected'), function (s) {
+        state.connected = s.val() === true;
+        render();
+      });
+      KEYS.forEach(function (k) {
+        var l = L[k];
+        D.onValue(D.ref(state.db, k), function (snap) {
+          var v = snap.val() || {};
+          l.docs = Object.keys(v).map(function (id) {
+            var x = v[id] || {};
+            return { id: id, name: String(x.name || 'Sin nombre'), at: Number(x.createdAt) || 0 };
+          }).sort(function (a, b) { return (a.at - b.at) || (a.id < b.id ? -1 : 1); });
+          l.loaded = true;
+          render();
+        }, function (e) {
+          state.msg = errText(e); state.msgError = true; l.loaded = true; render();
+        });
+      });
+    } catch (e) {
+      state.failed = true; render();
+    }
+  })();
+})();
+</script>
+</body>
+</html>
