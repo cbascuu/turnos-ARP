@@ -2,14 +2,32 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<!-- RESUMEN DEL ARCHIVO
+     Esta página tiene tres partes:
+     1) HTML (dentro de body): lo que se ve, o sea el nombre, los botones y las dos listas.
+     2) CSS (dentro de style): colores, tamaños y posición de cada cosa.
+     3) JavaScript (dentro de script): lo que hace la página. Conecta con Firebase, guarda
+        los turnos, ordena las listas y las actualiza en directo en todos los dispositivos.
+     Lo único que normalmente hay que editar es la línea DATABASE_URL, en el JavaScript. -->
+<!-- Hace que la página se adapte al ancho de la pantalla, en móvil y en ordenador. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Indica que la página admite tema claro y tema oscuro. -->
 <meta name="color-scheme" content="light dark">
 <title>Turnos de palabra</title>
+<!-- Tipos de letra de Google Fonts: Bricolage Grotesque (títulos), Instrument Sans (texto)
+     e IBM Plex Mono (números). Si no cargan, el navegador usa una letra del sistema. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<!-- ESTILOS (CSS): definen el aspecto de la página. Cada bloque lleva su explicación. -->
 <style>
 /* Layout: nombre y dos botones arriba; debajo, en paralelo, la lista de intervención directa (ámbar) y la de turnos de palabra. En pantallas estrechas se apilan. */
+/* COLORES Y FUENTES (tema claro). Son variables que se reutilizan en toda la página:
+   cambiar un valor aquí lo cambia en todas partes.
+   --bg fondo de la página, --surface fondo de las tarjetas, --ink texto, --muted texto gris,
+   --line líneas y bordes, --accent azul (turnos), --direct ámbar (intervención directa),
+   --danger rojo (errores). --f-display, --f-body y --f-mono son los tipos de letra de
+   títulos, texto y números. */
 :root {
   color-scheme: light;
   --bg: #EEF0F4;
@@ -29,6 +47,8 @@
   --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
 }
+/* TEMA OSCURO AUTOMÁTICO: si el dispositivo está en modo oscuro, se usan estos colores
+   en lugar de los de arriba. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0E1117;
@@ -47,6 +67,7 @@
     color-scheme: dark;
   }
 }
+/* Los mismos colores oscuros, para cuando el visor fuerza el tema oscuro a mano. */
 :root[data-theme="dark"] {
   --bg: #0E1117;
   --surface: #161B24;
@@ -64,8 +85,14 @@
   color-scheme: dark;
 }
 
+/* REGLAS GENERALES: el tamaño de cada elemento incluye su borde y su relleno (así es más
+   fácil calcular anchos). */
 *, *::before, *::after { box-sizing: border-box; }
+/* Todo lo que lleve el atributo hidden queda oculto (por ejemplo la barra de administrador
+   mientras no estés en modo admin). */
 [hidden] { display: none !important; }
+/* PÁGINA COMPLETA: fondo, color y letra del texto, y 16px de margen a izquierda y derecha
+   para que nada toque el borde del móvil. */
 body {
   margin: 0;
   background: var(--bg);
@@ -76,8 +103,13 @@ body {
   padding-inline: 16px;
   padding-block: 32px 56px;
 }
+/* Contenedor central: ancho máximo de 980px, centrado, con 20px entre bloques. */
 .wrap { max-width: 980px; margin-inline: auto; display: grid; gap: 20px; }
+/* LAS DOS LISTAS EN PARALELO: dos columnas del mismo ancho. Si no caben (300px mínimo
+   cada una, como en un móvil) pasan a apilarse una encima de otra. */
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start; }
+/* Estilo del título principal (h1). Ahora mismo el HTML no lo usa, pero queda por si lo
+   vuelves a poner. */
 h1 {
   margin: 0;
   font-family: var(--f-display);
@@ -87,6 +119,7 @@ h1 {
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
+/* Estilo del título de cada lista ("Intervención directa" y "Turnos de palabra"). */
 h2 {
   margin: 0;
   font-family: var(--f-display);
@@ -94,8 +127,19 @@ h2 {
   font-size: 20px;
   line-height: 1.15;
 }
+/* LÍNEA DE ESTADO DE SINCRONIZACIÓN (arriba del todo). Por defecto en gris; el JavaScript
+   le añade la clase "ok" (verde) o "bad" (rojo) según el estado. */
 .count { margin: 6px 0 0; color: var(--muted); }
+/* Verde para el estado "Actualizado" (un tono para el tema claro y otro para el oscuro). */
+:root { --ok: #1b7f3b9e; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ok: #5fd389b3; } }
+:root[data-theme="dark"] { --ok: #5fd389b3; }
+/* Si el estado es "Actualizado": verde. */
+.count.ok { color: var(--ok); font-weight: 600; }
+/* Cualquier otro estado ("Conectando…", "Sin conexión"…): rojo. */
+.count.bad { color: var(--danger); font-weight: 600; }
 
+/* TARJETA SUPERIOR: el recuadro blanco que contiene el nombre y los dos botones. */
 .panel {
   width: 100%;
   max-width: 560px;
@@ -104,8 +148,12 @@ h2 {
   border-radius: 12px;
   padding: 16px;
 }
+/* Formulario: etiqueta, campo y botones uno debajo de otro, con 10px de separación. */
 form { display: grid; gap: 10px; }
+/* Etiqueta pequeña en mayúsculas encima del campo ("TU NOMBRE"). */
 label { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+/* Campo donde se escribe el nombre. La letra de 16px evita que el iPhone haga zoom al
+   tocarlo. */
 input[type="text"] {
   width: 100%;
   height: 48px;
@@ -117,10 +165,15 @@ input[type="text"] {
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+/* Aspecto del campo cuando está bloqueado (cuando ya estás apuntado en alguna lista). */
 input[type="text"]:disabled { color: var(--muted); }
+/* BOTONES EN GENERAL: misma letra que el resto y cursor de mano. Los botones desactivados
+   se ven medio transparentes y no se pueden pulsar. */
 button { font: inherit; cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.5; }
+/* Zona de los dos botones grandes: en dos columnas y, si no caben, uno debajo del otro. */
 .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+/* Botón grande, azul por defecto ("Pedir Turno"). */
 .primary {
   width: 100%;
   min-height: 56px;
@@ -134,18 +187,24 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   border: 2px solid var(--accent);
   border-radius: 10px;
 }
+/* Cuando ya estás en la lista el botón pasa a "Retirar…" y se ve solo con borde, sin relleno. */
 .primary.leave { color: var(--accent); background: transparent; }
+/* El botón de "Intervención directa" usa el color ámbar. */
 .primary.direct-btn { color: var(--direct-ink); background: var(--direct); border-color: var(--direct); }
 .primary.direct-btn.leave { color: var(--direct-text); background: transparent; }
+/* Mensaje debajo de los botones (tu posición en las listas, avisos y errores). */
 .status { margin: 12px 0 0; min-height: 1.45em; color: var(--muted); font-size: 15px; }
+/* Si el mensaje es un error, se ve en rojo. */
 .status.error { color: var(--danger); }
 
+/* LISTAS: cada lista es una tarjeta con borde y esquinas redondeadas. */
 .block {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
 }
+/* Cabecera de cada lista: título a la izquierda y número de personas a la derecha. */
 .block-head {
   display: flex;
   align-items: center;
@@ -154,13 +213,19 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
 }
+/* Número de personas que hay en la lista (letra tipo máquina de escribir). */
 .num { font-family: var(--f-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Lista de intervención directa: borde y cabecera en ámbar para que destaque. */
 .direct { border: 2px solid var(--direct); }
 .direct .block-head { background: var(--direct); color: var(--direct-ink); border-bottom: 0; }
 .direct .num { color: var(--direct-ink); }
+/* Texto pequeño de ayuda bajo una cabecera. Ahora mismo no se usa en el HTML. */
 .hint { margin: 0; padding: 12px 16px; color: var(--muted); font-size: 14px; border-bottom: 1px solid var(--line); }
 
+/* BARRA DE ADMINISTRADOR de cada lista ("Pasar al siguiente" y "Vaciar lista"). Solo se
+   muestra cuando el enlace termina en #admin. */
 .adminbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+/* Botones discretos, solo con borde: "Pasar al siguiente", "Vaciar lista" y "Quitar". */
 .ghost {
   min-height: 40px;
   padding: 0 14px;
@@ -171,10 +236,15 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   font-size: 14px;
   font-weight: 500;
 }
+/* Aviso en rojo del botón "Vaciar lista" mientras pide confirmación. */
 .ghost.warn { color: var(--danger); border-color: var(--danger); }
+/* Versión más pequeña, usada para el botón "Quitar" de cada fila. */
 .ghost.small { min-height: 32px; padding: 0 10px; font-size: 13px; }
 
+/* FILAS DE LAS LISTAS. Sin numeración automática: los números 1.º, 2.º… los pone el
+   JavaScript. */
 ol { list-style: none; margin: 0; padding: 0; }
+/* Cada fila (una persona): tres columnas, que son posición, nombre y etiquetas o botón. */
 .row {
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) auto;
@@ -183,13 +253,20 @@ ol { list-style: none; margin: 0; padding: 0; }
   padding: 14px 16px;
   border-top: 1px solid var(--line);
 }
+/* La primera fila no lleva línea encima. */
 .row:first-child { border-top: 0; }
+/* La primera persona de cada lista (la que tiene la palabra) se resalta con fondo de color. */
 .row.now { background: var(--accent-soft); }
+/* Posición de la persona (1.º, 2.º…). */
 .pos { font-family: var(--f-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .row.now .pos { color: var(--accent); }
+/* Nombre de la persona. Si es muy largo se parte en varias líneas. */
 .who { min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+/* El nombre de quien tiene la palabra se ve más grande y en negrita. */
 .row.now .who { font-family: var(--f-display); font-size: 21px; font-weight: 700; line-height: 1.15; }
+/* Parte derecha de cada fila, donde van las etiquetas y el botón "Quitar". */
 .tags { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+/* Etiquetas pequeñas y redondeadas ("Con la palabra", "Tú"). */
 .tag {
   font-size: 11px;
   font-weight: 600;
@@ -201,18 +278,26 @@ ol { list-style: none; margin: 0; padding: 0; }
   color: var(--muted);
   white-space: nowrap;
 }
+/* Etiqueta de quien habla ahora (azul). */
 .tag.speak { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+/* Etiqueta "Tú": marca tu propia fila. */
 .tag.me { color: var(--accent); border-color: var(--accent); }
+/* En la lista de intervención directa, la primera fila y sus etiquetas usan el ámbar. */
 .direct .row.now { background: var(--direct-soft); }
 .direct .row.now .pos { color: var(--direct-text); }
 .direct .tag.speak { background: var(--direct); color: var(--direct-ink); border-color: var(--direct); }
 .direct .tag.me { color: var(--direct-text); border-color: var(--direct-text); }
+/* Mensaje que se muestra cuando una lista está vacía. Ahora mismo no tiene texto en el
+   HTML: puedes escribirlo ahí (por ejemplo "Nadie en la lista"). */
 .empty { margin: 0; padding: 22px 16px; color: var(--muted); }
 
+/* Contorno visible al moverse por la página con el teclado. */
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Transición suave en los botones, solo si el usuario no tiene desactivadas las animaciones. */
 @media (prefers-reduced-motion: no-preference) {
   .primary, .ghost { transition: opacity 0.15s ease, background-color 0.15s ease; }
 }
+/* AJUSTE PARA MÓVILES ESTRECHOS: las etiquetas pasan debajo del nombre. */
 @media (max-width: 420px) {
   .row { grid-template-columns: 2.4rem minmax(0, 1fr); }
   .tags { grid-column: 2; justify-content: flex-start; }
@@ -220,63 +305,93 @@ ol { list-style: none; margin: 0; padding: 0; }
 </style>
 </head>
 <body>
+<!-- CONTENIDO VISIBLE. Todo lo que se ve en pantalla está dentro de este bloque. -->
 <main class="wrap">
+  <!-- CABECERA: solo contiene la línea de estado de sincronización. "Conectando…" es el texto
+       inicial; el JavaScript lo cambia a "Actualizado", "Sin conexión"… y le pone el color. -->
   <header>
-    <h1>Turnos de palabra</h1>
-    <p id="count" class="count">Conectando…</p>
+    <p id="count" class="count bad">Conectando…</p>
   </header>
 
+  <!-- TARJETA SUPERIOR: tu nombre y los dos botones. -->
   <section class="panel">
+    <!-- Al pulsar Enter en el campo del nombre se pide turno normal (como el botón azul). -->
     <form id="form" autocomplete="off">
       <label for="name">Tu nombre</label>
+      <!-- Campo del nombre (máximo 40 letras). El navegador lo recuerda y se bloquea cuando ya
+           estás en alguna lista. -->
       <input id="name" type="text" maxlength="40" placeholder="Nombre y apellido" enterkeyhint="go">
+      <!-- Los dos botones. Empiezan desactivados (disabled) hasta que la página conecte con el
+           servidor. Tu texto se cambia desde el JavaScript (CFG) cuando cambian de función. -->
       <div class="actions">
-        <button id="go-turnos" type="button" class="primary" disabled>Pedir la palabra</button>
+        <!-- Botón azul: te apunta a la lista "Turnos de palabra", o te quita si ya estás. -->
+        <button id="go-turnos" type="button" class="primary" disabled>Pedir Turno</button>
+        <!-- Botón ámbar: te apunta a "Intervención directa". Puedes estar en las dos listas a la vez. -->
         <button id="go-directas" type="button" class="primary direct-btn" disabled>Intervención directa</button>
       </div>
     </form>
+    <!-- Mensajes para ti: tu posición en las listas, avisos y errores. Con aria-live los
+         lectores de pantalla lo leen cuando cambia. -->
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </section>
 
+  <!-- LAS DOS LISTAS, una al lado de la otra (una encima de la otra en pantallas estrechas). -->
   <div class="cols">
+    <!-- LISTA 1: INTERVENCIÓN DIRECTA (ámbar). Se interviene sin esperar los turnos de palabra. -->
     <section class="block direct" aria-labelledby="h-directas">
       <div class="block-head">
         <h2 id="h-directas">Intervención directa</h2>
         <span id="n-directas" class="num"></span>
       </div>
+      <!-- Botones de administrador de esta lista, ocultos salvo con #admin. "Pasar al siguiente"
+           quita al primero; "Vaciar lista" borra a todos (pide confirmar antes). -->
       <div id="admin-directas" class="adminbar" hidden>
         <button id="next-directas" type="button" class="ghost">Pasar al siguiente</button>
         <button id="clear-directas" type="button" class="ghost">Vaciar lista</button>
       </div>
+      <!-- Aquí escribe el JavaScript las filas de la lista, una por persona. -->
       <ol id="list-directas"></ol>
+      <!-- Mensaje de lista vacía (ahora sin texto). Solo se ve cuando no hay nadie. -->
       <p id="empty-directas" class="empty" hidden></p>
     </section>
 
+    <!-- LISTA 2: TURNOS DE PALABRA (azul). Funciona igual que la anterior. -->
     <section class="block" aria-labelledby="h-turnos">
       <div class="block-head">
         <h2 id="h-turnos">Turnos de palabra</h2>
         <span id="n-turnos" class="num"></span>
       </div>
+      <!-- Botones de administrador de esta lista (solo con #admin). -->
       <div id="admin-turnos" class="adminbar" hidden>
         <button id="next-turnos" type="button" class="ghost">Pasar al siguiente</button>
         <button id="clear-turnos" type="button" class="ghost">Vaciar lista</button>
       </div>
+      <!-- Aquí escribe el JavaScript las filas de la lista de turnos. -->
       <ol id="list-turnos"></ol>
+      <!-- Mensaje de lista vacía (ahora sin texto). -->
       <p id="empty-turnos" class="empty" hidden></p>
     </section>
   </div>
 </main>
 
+<!-- SCRIPT 1, DIAGNÓSTICO: un aviso de seguridad. Está separado del principal para que siga
+     funcionando aunque el principal se rompa al editarlo. -->
 <script>
 /* Avisos de diagnóstico: funcionan aunque el script principal falle al editarlo. */
+// Esta función se ejecuta sola al cargar la página. Lo que hay dentro queda aislado del resto.
 (function () {
+  // Escribe un mensaje de error en la zona de mensajes, en rojo.
   function show(t) {
     var s = document.getElementById('status');
     if (s) { s.textContent = t; s.classList.add('error'); }
   }
+  // Si algo falla en el JavaScript (por ejemplo, si al editar se rompe el código), lo muestra
+  // en pantalla en vez de dejar la página en "Conectando…".
   window.addEventListener('error', function (e) {
     show('Error en la página: ' + (e && e.message ? e.message : 'desconocido') + '. Si acabas de editar index.html, revisa la línea DATABASE_URL (comillas y punto y coma).');
   });
+  // Si pasan 12 segundos y la línea de estado sigue en "Conectando…", avisa de que no se
+  // consigue conectar con la base de datos.
   setTimeout(function () {
     var c = document.getElementById('count');
     if (c && c.textContent === 'Conectando…') {
@@ -285,24 +400,43 @@ ol { list-style: none; margin: 0; padding: 0; }
   }, 12000);
 })();
 </script>
+<!-- SCRIPT 2, EL PRINCIPAL: la lógica de la página. Se organiza así: configuración, identidad
+     anónima, estado, pintado de la página (render), acciones de los botones y, al final, la
+     conexión con Firebase. -->
 <script>
 /* ============ CONFIGURACIÓN ============
    Pega aquí la URL de tu Realtime Database de Firebase (ver LEEME.md, paso 4).
    Empieza por https:// y termina en firebasedatabase.app o firebaseio.com */
+// Dirección de tu base de datos de Firebase, que es donde se guardan las listas.
+// Sin ella la página no funciona.
 var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebasedatabase.app/";
 /* ====================================== */
 
+// Aquí empieza la lógica de la página, dentro de una función que se ejecuta sola.
 (function () {
+  // Atajo: $("nombre") busca en la página el elemento que tiene ese id.
   var $ = function (id) { return document.getElementById(id); };
+  // Elementos fijos de la página que se usan mucho: campo del nombre, formulario, mensaje
+  // de estado y línea de sincronización.
   var els = { name: $('name'), form: $('form'), status: $('status'), count: $('count') };
+  // Claves con las que el navegador recuerda cosas en tu dispositivo: tu nombre (NAME_KEY)
+  // y tu identificador anónimo (ID_KEY).
   var NAME_KEY = 'turnos:nombre';
   var ID_KEY = 'turnos:id';
+  // Formato permitido para el identificador: letras, números, - y _, de 8 a 40 caracteres.
+  // Las reglas de Firebase exigen el mismo formato.
   var ID_RE = /^[A-Za-z0-9_-]{8,40}$/;
+  // Nombres de las dos listas. También son los nombres de las dos "carpetas" de la base de
+  // datos. Importa el orden: la de intervención directa se pinta primero.
   var KEYS = ['directas', 'turnos'];
+  // Textos de cada lista. join = texto del botón para apuntarse, leave = para retirarse,
+  // now = etiqueta de quien va el primero. Aquí se editan los textos de botones y etiquetas.
   var CFG = {
     directas: { join: 'Intervención directa', leave: 'Retirar intervención directa', now: 'Interviene ahora' },
-    turnos: { join: 'Pedir la palabra', leave: 'Retirar mi turno', now: 'Con la palabra' }
+    turnos: { join: 'Pedir turno', leave: 'Retirar turno', now: 'Con la palabra' }
   };
+  // L guarda toda la información de cada lista: las personas (docs), si ya han cargado
+  // (loaded) y sus elementos de la página (botón, lista, mensaje vacío, barra de admin).
   var L = {};
   KEYS.forEach(function (k) {
     L[k] = {
@@ -312,13 +446,18 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     };
   });
 
+  // IDENTIDAD ANÓNIMA. No hay cuentas: cada navegador crea un código aleatorio y lo guarda.
+  // Con ese código el servidor sabe cuál es "tu" fila en cada lista.
   var memId = null;
+  // Crea un código aleatorio nuevo.
   function newId() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     var c = 'abcdefghijklmnopqrstuvwxyz0123456789', s = '';
     for (var i = 0; i < 24; i++) s += c.charAt(Math.floor(Math.random() * c.length));
     return s;
   }
+  // Devuelve tu código; si no existe, lo crea y lo guarda en el navegador. Si el navegador
+  // no deja guardar (modo privado), lo mantiene solo mientras la página esté abierta.
   function getId() {
     try {
       var v = localStorage.getItem(ID_KEY);
@@ -330,33 +469,50 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
       return memId || (memId = newId());
     }
   }
+  // Leer (lsGet) y guardar (lsSet) tu nombre en el navegador, para no escribirlo cada vez.
+  // Si el navegador lo impide, se ignora sin errores.
   function lsGet() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } }
   function lsSet(v) { try { localStorage.setItem(NAME_KEY, v); } catch (e) {} }
-  function checkAdmin() { return /organizador/i.test(location.hash); }
+  // MODO ADMIN: devuelve verdadero si el enlace termina exactamente en #admin. Eso es lo
+  // que hace aparecer los botones de administrador.
+  function checkAdmin() { return /^#admin$/i.test(location.hash); }
+  // Convierte un número en posición: 1 pasa a "1.º".
   function ordinal(n) { return n + '.º'; }
 
+  // ESTADO: variables que describen cómo está la página en cada momento.
+  // uid = tu identificador, isAdmin = si estás en modo admin, setup = falta configurar la
+  // URL, failed = no cargó Firebase, connected = hay conexión con el servidor, busy = hay
+  // una acción en curso (evita pulsar dos veces), msg y msgError = mensaje a mostrar,
+  // db y api = la conexión con Firebase.
   var state = {
     uid: getId(), isAdmin: checkAdmin(), setup: false, failed: false, connected: false,
     busy: false, msg: '', msgError: false, db: null, api: null
   };
 
+  // Traduce los errores técnicos a un mensaje que se entienda.
   function errText(e) {
     var code = e && e.code;
     if (code === 'PERMISSION_DENIED' || code === 'permission-denied') return 'No se pudo guardar. Comprueba que las reglas de la base de datos están publicadas (LEEME.md, paso 3).';
     return 'No se pudo completar la acción. Comprueba tu conexión e inténtalo de nuevo.';
   }
 
+  // Muestra un mensaje en la zona de estado y repinta la página.
   function setMsg(text, isError) { state.msg = text || ''; state.msgError = !!isError; render(); }
 
+  // Busca tu posición en una lista (0 es la primera). Devuelve -1 si no estás en ella.
   function mineIndex(l) {
     for (var i = 0; i < l.docs.length; i++) if (l.docs[i].id === state.uid) return i;
     return -1;
   }
 
+  // Dice si se puede pulsar: solo cuando está configurado, no hay fallos, la lista ya ha
+  // cargado y hay conexión con el servidor.
   function canAct(l) {
     return !state.setup && !state.failed && !!state.db && l.loaded && state.connected;
   }
 
+  // Calcula el mensaje de ayuda según la situación: falta configurar, error de carga o tu
+  // posición en cada lista.
   function derivedMsg() {
     if (state.setup) return 'Falta configurar la base de datos. Sigue los pasos del archivo LEEME.md.';
     if (state.failed) return 'No se pudo cargar el servicio de datos. Comprueba tu conexión y recarga la página.';
@@ -365,9 +521,11 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     if (md >= 0) parts.push(md === 0 ? 'Intervención directa: te toca.' : 'Intervención directa: posición ' + ordinal(md + 1) + '.');
     if (mt >= 0) parts.push(mt === 0 ? 'Turno de palabra: te toca.' : 'Turno de palabra: posición ' + ordinal(mt + 1) + '.');
     if (parts.length) return parts.join(' ');
-    return 'Escribe tu nombre y elige una opción. Se asigna por orden de pulsado.';
   }
 
+  // PINTAR UNA LISTA: borra las filas y las vuelve a crear desde los datos. Cada fila lleva
+  // posición, nombre, la etiqueta del primero, la etiqueta "Tú" en tu fila y el botón "Quitar"
+  // si eres admin. También actualiza el contador y los botones de administrador.
   function renderList(l) {
     var n = l.docs.length;
     l.list.textContent = '';
@@ -418,20 +576,31 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     l.clear.classList.toggle('warn', l.confirmClear);
   }
 
+  // PINTAR TODA LA PÁGINA. Se llama cada vez que algo cambia (datos nuevos, conexión, botón
+  // pulsado). Actualiza la línea de estado, el campo de nombre, los botones, las listas y
+  // el mensaje.
   function render() {
+    // Texto de la línea de estado de arriba, según la situación (se evalúa en este orden).
     var allLoaded = KEYS.every(function (k) { return L[k].loaded; });
     if (state.setup) els.count.textContent = 'Sin configurar';
     else if (state.failed) els.count.textContent = 'Sin conexión';
     else if (!allLoaded) els.count.textContent = 'Conectando…';
     else if (!state.connected) els.count.textContent = 'Sin conexión. Reconectando…';
-    else els.count.textContent = 'Se actualiza en directo en todos los dispositivos.';
+    else els.count.textContent = 'Actualizado';
+    // Verde si pone "Actualizado"; rojo en cualquier otro caso.
+    var isOk = els.count.textContent === 'Actualizado';
+    els.count.classList.toggle('ok', isOk);
+    els.count.classList.toggle('bad', !isOk);
 
+    // Si ya estás en alguna lista, muestra tu nombre en el campo y lo bloquea.
     var mt = mineIndex(L.turnos), md = mineIndex(L.directas);
     var any = mt >= 0 || md >= 0;
     if (mt >= 0) els.name.value = L.turnos.docs[mt].name;
     else if (md >= 0) els.name.value = L.directas.docs[md].name;
     els.name.disabled = any || state.setup || state.failed;
 
+    // Para cada lista: actualiza su botón (activado o no, y su texto: apuntarse o retirarse)
+    // y vuelve a pintar sus filas.
     KEYS.forEach(function (k) {
       var l = L[k], mine = mineIndex(l) >= 0;
       l.btn.disabled = state.busy || !canAct(l);
@@ -440,10 +609,13 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
       renderList(l);
     });
 
+    // Mensaje de ayuda o de error debajo de los botones (en rojo si es un error).
     els.status.textContent = state.msg || derivedMsg();
     els.status.classList.toggle('error', state.setup || state.failed || (!!state.msg && state.msgError));
   }
 
+  // APUNTARSE A UNA LISTA: comprueba que hay nombre y guarda en la base de datos tu nombre
+  // y la hora de pulsado.
   async function claim(l) {
     var name = els.name.value.replace(/\s+/g, ' ').trim().slice(0, 40);
     if (!name) { setMsg('Escribe tu nombre para participar.', true); els.name.focus(); return; }
@@ -463,6 +635,8 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     }
   }
 
+  // QUITAR A UNA PERSONA de una lista: tú mismo con "Retirar", o el admin con "Quitar" o
+  // "Pasar al siguiente".
   async function removeDoc(l, id) {
     if (!state.db || state.busy) return;
     state.busy = true; state.msg = ''; render();
@@ -471,6 +645,8 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     finally { state.busy = false; render(); }
   }
 
+  // VACIAR LISTA (admin): la primera pulsación pide confirmar (durante 4 segundos); la
+  // segunda borra a todos, uno a uno.
   async function clearAll(l) {
     if (!state.db || state.busy) return;
     if (!l.confirmClear) {
@@ -491,42 +667,62 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
     }
   }
 
+  // Un solo botón por lista hace de "apuntarse" o de "retirarse", según si ya estás dentro.
   function toggle(l) {
     if (state.busy || !canAct(l)) return;
     if (mineIndex(l) >= 0) removeDoc(l, state.uid); else claim(l);
   }
 
+  // CONEXIÓN DE LOS BOTONES: asocia cada botón con su acción al hacer clic (apuntarse o
+  // retirarse, pasar al siguiente, vaciar lista).
   KEYS.forEach(function (k) {
     var l = L[k];
     l.btn.addEventListener('click', function () { toggle(l); });
     l.next.addEventListener('click', function () { if (l.docs.length) removeDoc(l, l.docs[0].id); });
     l.clear.addEventListener('click', function () { clearAll(l); });
   });
+  // Pulsar Enter en el campo del nombre equivale a pulsar "Pedir Turno".
   els.form.addEventListener('submit', function (ev) { ev.preventDefault(); toggle(L.turnos); });
+  // Si cambia el final del enlace (#admin) con la página abierta, el modo admin se activa o
+  // se desactiva al instante.
   window.addEventListener('hashchange', function () { state.isAdmin = checkAdmin(); render(); });
 
+  // ARRANQUE: rellena el nombre guardado y pinta la página por primera vez (aún sin datos).
   els.name.value = lsGet();
   render();
 
+  // CONEXIÓN CON FIREBASE. Se ejecuta al cargar la página: 1) comprueba que la URL es válida,
+  // 2) descarga las librerías de Firebase y 3) se suscribe en directo a la conexión y a las
+  // dos listas. Cada cambio de cualquier persona llega aquí al instante y la página se
+  // repinta.
   (async function init() {
+    // Formato aceptado para la URL de la base de datos.
     var URL_RE = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.(firebaseio\.com|firebasedatabase\.app)\/?$/i;
+    // Si la URL no es válida (por ejemplo, no se ha pegado), se muestra "Sin configurar".
     if (!URL_RE.test(DATABASE_URL)) { state.setup = true; render(); return; }
     try {
+      // Carpeta de Google desde la que se descargan las librerías de Firebase (versión 10.14.1).
       var base = 'https://www.gstatic.com/firebasejs/10.14.1/';
       var A = await import(base + 'firebase-app.js');
       var D = await import(base + 'firebase-database.js');
+      // Inicia Firebase con tu URL y se conecta a la base de datos.
       var app = A.initializeApp({ databaseURL: DATABASE_URL });
       state.db = D.getDatabase(app);
       state.api = { ref: D.ref, set: D.set, remove: D.remove, serverTimestamp: D.serverTimestamp };
 
+      // Aviso en directo de si hay conexión con el servidor. Alimenta el estado verde o rojo.
       D.onValue(D.ref(state.db, '.info/connected'), function (s) {
         state.connected = s.val() === true;
         render();
       });
+      // Para cada lista, escucha los cambios en directo: cada vez que alguien se apunta o se
+      // retira, llega la lista completa.
       KEYS.forEach(function (k) {
         var l = L[k];
         D.onValue(D.ref(state.db, k), function (snap) {
           var v = snap.val() || {};
+          // Convierte los datos en una lista de personas (id, nombre y hora) y la ordena por hora
+          // de pulsado: el primero que pulsó va primero. Si dos coinciden, desempata por id.
           l.docs = Object.keys(v).map(function (id) {
             var x = v[id] || {};
             return { id: id, name: String(x.name || 'Sin nombre'), at: Number(x.createdAt) || 0 };
@@ -538,6 +734,8 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
         });
       });
     } catch (e) {
+      // Si no se pueden descargar las librerías (sin internet o bloqueadas), se marca como
+      // fallo y se avisa.
       state.failed = true; render();
     }
   })();
