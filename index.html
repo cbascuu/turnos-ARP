@@ -801,7 +801,7 @@ var DATABASE_URL = "https://turnos-de-palabra-default-rtdb.europe-west1.firebase
   async function openMini() {
     if (window.documentPictureInPicture) {
       try {
-        var pip = await window.documentPictureInPicture.requestWindow({ width: 220, height: 110, disallowReturnToOpener: true });
+        var pip = await window.documentPictureInPicture.requestWindow({ width: 50, height: 60, disallowReturnToOpener: true });
         copyStyles(pip.document);
         pip.document.documentElement.lang = 'es';
         pip.document.body.className = 'pip';
